@@ -1,0 +1,54 @@
+version: '3.8'
+
+networks:
+    backend:
+        driver: ${NETWORKS_DRIVER}
+        
+services:
+    ### Workspace Utilities ##################################
+    workspace:
+        build:
+            context: ./infrastructure/workspace
+            args:
+                TIMEZONE: "Asia/Ho_Chi_Minh"
+        volumes:
+            - ./infrastructure/workspace/php-ini-overrides.ini:/usr/local/etc/php/conf.d/php-ini-overrides.ini
+            - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+        tty: true
+        networks:
+            - backend
+    
+    ### PHP-FPM ##############################################
+    php-fpm:
+        build:
+            context: ./infrastructure/php-fpm
+            args:
+                TIMEZONE: "Asia/Ho_Chi_Minh"
+        volumes:
+            - ./infrastructure/php-fpm/php-ini-overrides.ini:/usr/local/etc/php/conf.d/php-ini-overrides.ini
+            - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+        expose:
+            - "9000"
+        depends_on:
+            - workspace
+        networks:
+            - backend
+    
+    ### NGINX Server #########################################
+    nginx:
+        build:
+            context: ./infrastructure/nginx
+            args:
+                PHP_UPSTREAM_CONTAINER: "php-fpm"
+                PHP_UPSTREAM_PORT: 9000
+        volumes:
+            - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+            - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
+            - ${NGINX_SITES_PATH}:/etc/nginx/sites-available
+        depends_on:
+            - php-fpm
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - backend
